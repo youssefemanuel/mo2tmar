@@ -10,18 +10,9 @@
               انزل تحت لحد "Your apps" واضغط أيقونة الويب </> وسجل اسم للتطبيق.
               هيديك object فيه القيم دي، انسخها وحطها مكان القيم تحت.
            4) بعد التجربة، متنساش تظبط الـ Rules في Realtime Database بعد فترة
-              (test mode بيفتح القراءة/الك
-              تابة للجميع لمدة 30 يوم بس، بعدها
+              (test mode بيفتح القراءة/الكتابة للجميع لمدة 30 يوم بس، بعدها
               لازم تظبطها إنها تفضل مفتوحة يدويًا لو عايز اللينك يفضل شغال).
            ============================================================ */
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAsdFjnuKhpZU12aDtcBtEcVuFsM0pwXZc",
   authDomain: "moatmar-bbb4a.firebaseapp.com",
@@ -30,13 +21,7 @@ const firebaseConfig = {
   storageBucket: "moatmar-bbb4a.firebasestorage.app",
   messagingSenderId: "130073397072",
   appId: "1:130073397072:web:75dad06b542fb39694ce55",
-  measurementId: "G-5J79BZKH4E",
 };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
 let groupsRef = null;
 try {
   firebase.initializeApp(firebaseConfig);
