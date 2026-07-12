@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>أصل ولا صورة؟ — Camp Scoreboard</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- Firebase (لازم تكون متصل بالإنترنت عشان يشتغل المزامنة) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  </head>
+    <body>
+      <div class="topbar">
+        <div>
+          <h1 dir="rtl">أصل ولا صورة؟</h1>
+          <div class="sub" dir="rtl">لوحة النقاط · Asl wala soora?</div>
+        </div>
+        <div class="topactions">
+          <button
+            class="resetbtn"
+            onclick="document.getElementById('importFile').click()"
+          >
+            Import backup
+          </button>
+          <button class="resetbtn" onclick="exportData()">Export backup</button>
+          <button class="resetbtn" onclick="resetAll()">Reset</button>
+          <input
+            type="file"
+            id="importFile"
+            accept="application/json,.json"
+            style="display: none"
+            onchange="importData(event)"
+          />
+        </div>
+      </div>
+
+      <div class="container" id="container"></div>
+      <div class="footer">
+        Followers · Actions · Posts — all save automatically
+      </div>
+
+      <!-- Edit profile modal -->
+      <div class="modal" id="profileModal">
+        <div class="sheet">
+          <h3>Edit group</h3>
+          <label>Group name</label>
+          <input id="m_name" type="text" maxlength="40" />
+          <label>Handle (the @username)</label>
+          <input id="m_handle" type="text" maxlength="40" />
+          <label>Bio</label>
+          <input id="m_bio" type="text" maxlength="80" />
+          <label>Profile photo (paste image link or pick a file)</label>
+          <input id="m_photo" type="text" placeholder="https://..." />
+          <input
+            id="m_photofile"
+            type="file"
+            accept="image/*"
+            style="margin-top: 6px; border: none; padding: 0"
+          />
+          <div class="hint">A web link or an uploaded file both work.</div>
+          <div class="row">
+            <button class="btn cancel" onclick="closeModal('profileModal')">
+              Cancel
+            </button>
+            <button class="btn save" onclick="saveProfile()">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add post modal -->
+      <div class="modal" id="postModal">
+        <div class="sheet">
+          <h3>New post</h3>
+          <label>Caption (what the session was about)</label>
+          <textarea id="p_cap" maxlength="120"></textarea>
+          <label>Photo (paste image link or pick a file — optional)</label>
+          <input id="p_photo" type="text" placeholder="https://..." />
+          <input
+            id="p_photofile"
+            type="file"
+            accept="image/*"
+            style="margin-top: 6px; border: none; padding: 0"
+          />
+          <div class="hint">
+            No photo? It posts a caption tile in the group's color.
+          </div>
+          <div class="row">
+            <button class="btn cancel" onclick="closeModal('postModal')">
+              Cancel
+            </button>
+            <button class="btn save" onclick="savePost()">Share</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications modal (per group) -->
+      <div class="modal" id="notifModal">
+        <div class="sheet">
+          <h3 id="notifTitle">&#128276; Notifications</h3>
+          <label>Send a new notification to this team</label>
+          <textarea
+            id="n_text"
+            maxlength="200"
+            placeholder="e.g. Great job team! Session 3 starts in 10 minutes."
+          ></textarea>
+          <div class="row" style="margin-top: 10px">
+            <button class="btn cancel" onclick="clearNotifs()">
+              Clear all
+            </button>
+            <button class="btn save" onclick="sendNotif()">Send</button>
+          </div>
+          <div class="notif-list" id="notifList" style="margin-top: 16px"></div>
+        </div>
+      </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

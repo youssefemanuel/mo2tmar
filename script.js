@@ -1,0 +1,397 @@
+/* ============================================================
+           إعدادات Firebase — عشان الكل يشوف نفس البيانات بنفس اللينك
+           ============================================================
+           الخطوات (5 دقايق ومجاني):
+           1) روح https://console.firebase.google.com/ وسجل دخول بجيميل
+              واعمل "Add project" (مشروع جديد باسم أي حاجة).
+           2) من القايمة الجانبية: Build > Realtime Database > Create Database
+              اختار أي location، وبعدين اختار "Start in test mode".
+           3) من الترس بجانب "Project Overview" > Project settings،
+              انزل تحت لحد "Your apps" واضغط أيقونة الويب </> وسجل اسم للتطبيق.
+              هيديك object فيه القيم دي، انسخها وحطها مكان القيم تحت.
+           4) بعد التجربة، متنساش تظبط الـ Rules في Realtime Database بعد فترة
+              (test mode بيفتح القراءة/الك
+              تابة للجميع لمدة 30 يوم بس، بعدها
+              لازم تظبطها إنها تفضل مفتوحة يدويًا لو عايز اللينك يفضل شغال).
+           ============================================================ */
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAsdFjnuKhpZU12aDtcBtEcVuFsM0pwXZc",
+  authDomain: "moatmar-bbb4a.firebaseapp.com",
+  databaseURL: "https://moatmar-bbb4a-default-rtdb.firebaseio.com",
+  projectId: "moatmar-bbb4a",
+  storageBucket: "moatmar-bbb4a.firebasestorage.app",
+  messagingSenderId: "130073397072",
+  appId: "1:130073397072:web:75dad06b542fb39694ce55",
+  measurementId: "G-5J79BZKH4E",
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+let groupsRef = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  groupsRef = firebase.database().ref("camp_groups");
+} catch (e) {
+  console.error("Firebase init failed:", e);
+}
+
+const COLORS = ["#dc2743", "#0095f6", "#2e7d32"];
+const DEFAULTS = [
+  {
+    name: "Group 1",
+    handle: "@group_one",
+    bio: "Camp 2026 · أصل ولا صورة؟",
+    photo: "",
+    followers: 0,
+    actions: 0,
+    posts: [],
+    notifs: [],
+  },
+  {
+    name: "Group 2",
+    handle: "@group_two",
+    bio: "Camp 2026 · أصل ولا صورة؟",
+    photo: "",
+    followers: 0,
+    actions: 0,
+    posts: [],
+    notifs: [],
+  },
+  {
+    name: "Group 3",
+    handle: "@group_three",
+    bio: "Camp 2026 · أصل ولا صورة؟",
+    photo: "",
+    followers: 0,
+    actions: 0,
+    posts: [],
+    notifs: [],
+  },
+];
+let groups = [];
+let activeIndex = null;
+
+function load() {
+  if (!groupsRef) {
+    // Firebase مش متظبط — استخدم نسخة محلية مؤقتة عشان الصفحة تشتغل
+    groups = JSON.parse(JSON.stringify(DEFAULTS));
+    render();
+    alert(
+      "لسه ماظبطتش إعدادات Firebase في script.js، فالبيانات دلوقتي هتفضل محلية بس مش مشتركة. راجع التعليمات في أول الملف.",
+    );
+    return;
+  }
+  groupsRef.on(
+    "value",
+    (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        groups = data;
+      } else {
+        groups = JSON.parse(JSON.stringify(DEFAULTS));
+        groupsRef.set(groups);
+      }
+      groups.forEach((g) => {
+        if (typeof g.actions !== "number") g.actions = 0;
+        if (!Array.isArray(g.notifs)) g.notifs = [];
+        if (!Array.isArray(g.posts)) g.posts = [];
+      });
+      render();
+    },
+    (error) => {
+      console.error("Firebase read failed:", error);
+      alert(
+        "مقدرش أوصل لقاعدة البيانات. تأكد إن الإنترنت شغال وإن إعدادات Firebase في script.js صح.",
+      );
+    },
+  );
+}
+function save() {
+  if (!groupsRef) return;
+  try {
+    groupsRef.set(groups);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function initials(n) {
+  return n
+    .split(" ")
+    .map((w) => w[0] || "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function render() {
+  const c = document.getElementById("container");
+  c.innerHTML = "";
+  groups.forEach((g, i) => {
+    const color = COLORS[i % 3];
+    const card = document.createElement("div");
+    card.className = "profile";
+    const avatar = g.photo
+      ? `<img class="avatar" src="${g.photo}" onerror="this.style.display='none'">`
+      : `<div class="avatar-ph" style="background:${color}">${initials(g.name)}</div>`;
+    let cells = g.posts
+      .map((p, pi) => {
+        const inner = p.photo
+          ? `<img src="${p.photo}" onerror="this.parentNode.innerHTML='<div class=cap style=background:${encodeURIComponent(color)}>'+\`${(p.cap || "").replace(/`/g, "")}\`+'</div>'">`
+          : `<div class="cap" style="background:${color}">${p.cap || "Post"}</div>`;
+        return `<div class="gcell">${inner}<button class="del" onclick="delPost(${i},${pi})">&times;</button></div>`;
+      })
+      .join("");
+    const grid = g.posts.length
+      ? `<div class="grid">${cells}</div>`
+      : `<div class="empty">No posts yet — add one after your first session</div>`;
+    const bellBadge = g.notifs.length
+      ? `<span class="badge show">${g.notifs.length}</span>`
+      : "";
+    card.innerHTML = `
+      <div class="phead">
+        <div class="avatar-wrap" onclick="openProfile(${i})">${avatar}</div>
+        <div class="pmeta">
+          <div class="pname">${g.name}</div>
+          <div class="handle">${g.handle}</div>
+          <div class="stats">
+            <div class="stat"><b>${g.posts.length}</b><span>posts</span></div>
+            <div class="stat"><b>${g.followers.toLocaleString()}</b><span>followers</span></div>
+            <div class="stat"><b>${g.actions.toLocaleString()}</b><span>actions</span></div>
+          </div>
+        </div>
+        <button class="bell" onclick="openNotif(${i})" aria-label="Notifications">&#128276;${bellBadge}</button>
+      </div>
+      <div class="bio"><span class="label">${g.name}</span> · ${g.bio}</div>
+      <div class="controls first">
+        <span class="ctrl-label">Followers</span>
+        <input type="number" id="f_${i}" value="10" min="1">
+        <button class="btn" onclick="addF(${i})">+ Followers</button>
+        <button class="btn minus" onclick="subF(${i})">&minus;</button>
+      </div>
+      <div class="controls">
+        <span class="ctrl-label">Actions (good deeds)</span>
+        <input type="number" id="a_${i}" value="1" min="1">
+        <button class="btn actions" onclick="addA(${i})">+ Actions</button>
+        <button class="btn minus" onclick="subA(${i})">&minus;</button>
+        <button class="btn" style="background:${color}" onclick="openProfile(${i})">Edit</button>
+      </div>
+      <div style="padding:10px 18px 16px;">
+        <button class="btn post" onclick="openPost(${i})">+ Add post</button>
+      </div>
+      ${grid}
+    `;
+    c.appendChild(card);
+  });
+}
+
+function addF(i) {
+  const a = +document.getElementById("f_" + i).value || 0;
+  groups[i].followers += a;
+  save();
+  render();
+}
+function subF(i) {
+  const a = +document.getElementById("f_" + i).value || 0;
+  groups[i].followers = Math.max(0, groups[i].followers - a);
+  save();
+  render();
+}
+function addA(i) {
+  const a = +document.getElementById("a_" + i).value || 0;
+  groups[i].actions += a;
+  save();
+  render();
+}
+function subA(i) {
+  const a = +document.getElementById("a_" + i).value || 0;
+  groups[i].actions = Math.max(0, groups[i].actions - a);
+  save();
+  render();
+}
+function delPost(i, pi) {
+  groups[i].posts.splice(pi, 1);
+  save();
+  render();
+}
+
+function openProfile(i) {
+  activeIndex = i;
+  const g = groups[i];
+  m_name.value = g.name;
+  m_handle.value = g.handle;
+  m_bio.value = g.bio;
+  m_photo.value = g.photo || "";
+  m_photofile.value = "";
+  document.getElementById("profileModal").classList.add("show");
+}
+function saveProfile() {
+  const g = groups[activeIndex];
+  g.name = m_name.value.trim() || g.name;
+  g.handle = m_handle.value.trim() || g.handle;
+  g.bio = m_bio.value.trim();
+  const f = m_photofile.files[0];
+  if (f) {
+    readFile(f, (d) => {
+      g.photo = d;
+      save();
+      render();
+    });
+  } else {
+    g.photo = m_photo.value.trim();
+    save();
+    render();
+  }
+  closeModal("profileModal");
+}
+
+function openPost(i) {
+  activeIndex = i;
+  p_cap.value = "";
+  p_photo.value = "";
+  p_photofile.value = "";
+  document.getElementById("postModal").classList.add("show");
+}
+function savePost() {
+  const g = groups[activeIndex];
+  const cap = p_cap.value.trim();
+  const f = p_photofile.files[0];
+  const finish = (photo) => {
+    g.posts.unshift({ cap, photo: photo || "" });
+    save();
+    render();
+    closeModal("postModal");
+  };
+  if (f) {
+    readFile(f, (d) => finish(d));
+  } else {
+    finish(p_photo.value.trim());
+  }
+}
+
+/* ---- Notifications (per group) ---- */
+function openNotif(i) {
+  activeIndex = i;
+  n_text.value = "";
+  document.getElementById("notifTitle").innerHTML =
+    "&#128276; Notifications · " + groups[i].name;
+  renderNotifList();
+  document.getElementById("notifModal").classList.add("show");
+}
+function sendNotif() {
+  const t = n_text.value.trim();
+  if (!t) return;
+  const now = new Date();
+  groups[activeIndex].notifs.unshift({
+    text: t,
+    time: now.toLocaleString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "short",
+    }),
+  });
+  n_text.value = "";
+  save();
+  renderNotifList();
+  render();
+}
+function delNotif(i) {
+  groups[activeIndex].notifs.splice(i, 1);
+  save();
+  renderNotifList();
+  render();
+}
+function clearNotifs() {
+  const g = groups[activeIndex];
+  if (!g.notifs.length) return;
+  if (!confirm("Clear all notifications for " + g.name + "?")) return;
+  g.notifs = [];
+  save();
+  renderNotifList();
+  render();
+}
+function renderNotifList() {
+  const el = document.getElementById("notifList");
+  const list = groups[activeIndex].notifs;
+  if (!list.length) {
+    el.innerHTML =
+      '<div class="empty">No notifications yet for this team.</div>';
+    return;
+  }
+  el.innerHTML = list
+    .map(
+      (n, i) =>
+        `<div class="notif-item"><button class="x" onclick="delNotif(${i})">&times;</button>${n.text}<div class="time">${n.time}</div></div>`,
+    )
+    .join("");
+}
+function readFile(file, cb) {
+  const r = new FileReader();
+  r.onload = (e) => cb(e.target.result);
+  r.readAsDataURL(file);
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove("show");
+}
+function exportData() {
+  const blob = new Blob([JSON.stringify(groups)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "camp_scoreboard_backup.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function resetAll() {
+  if (!confirm("Reset every group back to zero and clear all posts?")) return;
+  groups = JSON.parse(JSON.stringify(DEFAULTS));
+  save();
+  render();
+}
+function importData(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error("bad format");
+      data.forEach((g) => {
+        if (typeof g.actions !== "number") g.actions = 0;
+        if (!Array.isArray(g.notifs)) g.notifs = [];
+        if (!Array.isArray(g.posts)) g.posts = [];
+      });
+      groups = data;
+      save();
+      render();
+      alert("Backup imported — " + data.length + " groups loaded.");
+    } catch (err) {
+      alert(
+        "That file could not be read. Make sure it is the backup file exported from the scoreboard.",
+      );
+    }
+    ev.target.value = "";
+  };
+  r.readAsText(file);
+}
+document.querySelectorAll(".modal").forEach((m) =>
+  m.addEventListener("click", (e) => {
+    if (e.target === m) m.classList.remove("show");
+  }),
+);
+load();
