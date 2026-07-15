@@ -14,9 +14,18 @@
         <div>
           <h1 dir="rtl">أصل ولا صورة؟</h1>
         </div>
-       
+        <div class="topactions">
+          <!-- MODIFICATION: display/admin mode toggles -->
+          <button class="toolbar-btn display-mode-btn" onclick="setDisplayMode(true)">
+            Display Mode
+          </button>
+          <button class="toolbar-btn secondary admin-mode-btn" onclick="setDisplayMode(false)">
+            Admin Mode
+          </button>
+        </div>
       </div>
 
+      <div class="leaderboard" id="leaderboard"></div>
       <div class="container" id="container"></div>
       <div class="footer">
         Followers · Actions · Posts — all save automatically
@@ -56,6 +65,10 @@
           <h3>New post</h3>
           <label>Caption (what the session was about)</label>
           <textarea id="p_cap" maxlength="120"></textarea>
+          <label>Followers Gained</label>
+          <input id="p_followers" type="number" min="0" value="0" />
+          <label>Actions Gained</label>
+          <input id="p_actions" type="number" min="0" value="0" />
           <label>Photo (paste image link or pick a file — optional)</label>
           <input id="p_photo" type="text" placeholder="https://..." />
           <input
