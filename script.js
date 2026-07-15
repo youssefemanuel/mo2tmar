@@ -65,6 +65,7 @@ const DEFAULTS = [
 ];
 let groups = [];
 let activeIndex = null;
+let displayMode = false;
 
 function load() {
   if (!groupsRef) {
@@ -88,8 +89,15 @@ function load() {
       }
       groups.forEach((g) => {
         if (typeof g.actions !== "number") g.actions = 0;
+        if (typeof g.followers !== "number") g.followers = 0;
         if (!Array.isArray(g.notifs)) g.notifs = [];
         if (!Array.isArray(g.posts)) g.posts = [];
+        g.posts = g.posts.map((p) => ({
+          ...p,
+          followersAdded: Number(p.followersAdded || 0),
+          actionsAdded: Number(p.actionsAdded || 0),
+          createdAt: p.createdAt || Date.now(),
+        }));
       });
       render();
     },
@@ -119,31 +127,81 @@ function initials(n) {
     .toUpperCase();
 }
 
+// MODIFICATION: replace the old card renderer with ranked cards, live leaderboard, and richer post tiles
 function render() {
   const c = document.getElementById("container");
+  const leaderboard = document.getElementById("leaderboard");
   c.innerHTML = "";
-  groups.forEach((g, i) => {
+
+  const ranked = [...groups].sort((a, b) => {
+    if (b.followers !== a.followers) return b.followers - a.followers;
+    return b.actions - a.actions;
+  });
+
+  leaderboard.innerHTML = `
+    <div class="leaderboard-title">🏆 LIVE RANKING</div>
+    ${ranked
+      .map((g, idx) => {
+        const rankLabel = idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉";
+        const rankNumber = idx + 1;
+        return `<button class="leader-item" onclick="scrollToGroup('${encodeURIComponent(g.name)}')">
+          <div class="leader-rank">${rankLabel} Rank #${rankNumber}</div>
+          <div class="leader-name">${g.name}</div>
+          <div class="leader-stats">
+            <span>👥 ${g.followers.toLocaleString()} Followers</span>
+            <span>⭐ ${g.actions.toLocaleString()} Actions</span>
+          </div>
+        </button>`;
+      })
+      .join("")}
+  `;
+
+  ranked.forEach((g, rankIndex) => {
+    const i = groups.indexOf(g);
     const color = COLORS[i % 3];
     const card = document.createElement("div");
-    card.className = "profile";
+    card.className = `profile rank-${rankIndex + 1}`;
     const avatar = g.photo
       ? `<img class="avatar" src="${g.photo}" onerror="this.style.display='none'">`
       : `<div class="avatar-ph" style="background:${color}">${initials(g.name)}</div>`;
-    let cells = g.posts
-      .map((p, pi) => {
+
+    const sortedPosts = (g.posts || []).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const cells = sortedPosts
+      .map((p) => {
+        const originalIndex = g.posts.indexOf(p);
+        const meta = [];
+        const followersAdded = Number(p.followersAdded || 0);
+        const actionsAdded = Number(p.actionsAdded || 0);
+        const timeText = p.createdAt ? formatTime(p.createdAt) : "";
+        if (followersAdded) meta.push(`👥 +${followersAdded.toLocaleString()} Followers`);
+        if (actionsAdded) meta.push(`⭐ +${actionsAdded.toLocaleString()} Actions`);
+        if (timeText) meta.push(`🕒 ${timeText}`);
+
+        const details = `<div class="post-details"><div class="post-caption">${escapeHtml(p.cap || "Post")}</div><div class="post-meta">${meta.join("<br>")}</div></div>`;
         const inner = p.photo
-          ? `<img src="${p.photo}" onerror="this.parentNode.innerHTML='<div class=cap style=background:${encodeURIComponent(color)}>'+\`${(p.cap || "").replace(/`/g, "")}\`+'</div>'">`
-          : `<div class="cap" style="background:${color}">${p.cap || "Post"}</div>`;
-        return `<div class="gcell">${inner}<button class="del" onclick="delPost(${i},${pi})">&times;</button></div>`;
+          ? `<div class="post-visual"><img src="${p.photo}" onerror="this.style.display='none'"></div>${details}`
+          : `<div class="post-tile" style="background:${color}"></div>${details}`;
+        return `<div class="gcell new-post"><button class="del" onclick="delPost(${i},${originalIndex})">&times;</button>${inner}</div>`;
       })
       .join("");
+
     const grid = g.posts.length
       ? `<div class="grid">${cells}</div>`
       : `<div class="empty">No posts yet — add one after your first session</div>`;
     const bellBadge = g.notifs.length
       ? `<span class="badge show">${g.notifs.length}</span>`
       : "";
+    const rankBadge =
+      rankIndex === 0
+        ? "🥇 Rank #1"
+        : rankIndex === 1
+          ? "🥈 Rank #2"
+          : rankIndex === 2
+            ? "🥉 Rank #3"
+            : `#${rankIndex + 1}`;
+
     card.innerHTML = `
+      <div class="rank-badge rank-${rankIndex + 1}">${rankBadge}</div>
       <div class="phead">
         <div class="avatar-wrap" onclick="openProfile(${i})">${avatar}</div>
         <div class="pmeta">
@@ -178,6 +236,7 @@ function render() {
     `;
     c.appendChild(card);
   });
+  applyDisplayMode();
 }
 
 function addF(i) {
@@ -208,6 +267,36 @@ function delPost(i, pi) {
   groups[i].posts.splice(pi, 1);
   save();
   render();
+}
+
+function setDisplayMode(on) {
+  displayMode = !!on;
+  applyDisplayMode();
+}
+function applyDisplayMode() {
+  document.body.classList.toggle("display-mode", displayMode);
+}
+function scrollToGroup(name) {
+  const safeName = decodeURIComponent(name);
+  const card = Array.from(document.querySelectorAll(".profile")).find((el) =>
+    el.textContent.includes(safeName),
+  );
+  if (card) {
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+function formatTime(ts) {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function openProfile(i) {
@@ -244,15 +333,27 @@ function openPost(i) {
   activeIndex = i;
   p_cap.value = "";
   p_photo.value = "";
+  p_followers.value = "0";
+  p_actions.value = "0";
   p_photofile.value = "";
   document.getElementById("postModal").classList.add("show");
 }
 function savePost() {
   const g = groups[activeIndex];
   const cap = p_cap.value.trim();
+  const followersAdded = Math.max(0, Number(p_followers.value || 0));
+  const actionsAdded = Math.max(0, Number(p_actions.value || 0));
   const f = p_photofile.files[0];
   const finish = (photo) => {
-    g.posts.unshift({ cap, photo: photo || "" });
+    g.posts.unshift({
+      cap,
+      photo: photo || "",
+      followersAdded,
+      actionsAdded,
+      createdAt: Date.now(),
+    });
+    g.followers += followersAdded;
+    g.actions += actionsAdded;
     save();
     render();
     closeModal("postModal");
@@ -358,8 +459,15 @@ function importData(ev) {
       if (!Array.isArray(data)) throw new Error("bad format");
       data.forEach((g) => {
         if (typeof g.actions !== "number") g.actions = 0;
+        if (typeof g.followers !== "number") g.followers = 0;
         if (!Array.isArray(g.notifs)) g.notifs = [];
         if (!Array.isArray(g.posts)) g.posts = [];
+        g.posts = g.posts.map((p) => ({
+          ...p,
+          followersAdded: Number(p.followersAdded || 0),
+          actionsAdded: Number(p.actionsAdded || 0),
+          createdAt: p.createdAt || Date.now(),
+        }));
       });
       groups = data;
       save();
