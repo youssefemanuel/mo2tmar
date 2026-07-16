@@ -93,9 +93,9 @@ function load() {
         if (!Array.isArray(g.notifs)) g.notifs = [];
         if (!Array.isArray(g.posts)) g.posts = [];
         g.posts = g.posts.map((p) => ({
-          ...p,
+          cap: p.cap || p.caption || "",
+          photo: p.photo || "",
           followersAdded: Number(p.followersAdded || 0),
-          actionsAdded: Number(p.actionsAdded || 0),
           createdAt: p.createdAt || Date.now(),
         }));
       });
@@ -127,37 +127,26 @@ function initials(n) {
     .toUpperCase();
 }
 
-// MODIFICATION: replace the old card renderer with ranked cards, live leaderboard, and richer post tiles
+// MODIFICATION: keep card order fixed and only update rank badges
 function render() {
   const c = document.getElementById("container");
-  const leaderboard = document.getElementById("leaderboard");
   c.innerHTML = "";
 
-  const ranked = [...groups].sort((a, b) => {
-    if (b.followers !== a.followers) return b.followers - a.followers;
-    return b.actions - a.actions;
+  const ranked = groups
+    .map((g, index) => ({ g, index }))
+    .sort((a, b) => {
+      if (b.g.followers !== a.g.followers) return b.g.followers - a.g.followers;
+      return b.g.actions - a.g.actions;
+    });
+
+  const rankByOriginalIndex = new Map();
+  ranked.forEach((entry, rankIndex) => {
+    rankByOriginalIndex.set(entry.index, rankIndex);
   });
 
-  leaderboard.innerHTML = `
-    <div class="leaderboard-title">🏆 LIVE RANKING</div>
-    ${ranked
-      .map((g, idx) => {
-        const rankLabel = idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉";
-        const rankNumber = idx + 1;
-        return `<button class="leader-item" onclick="scrollToGroup('${encodeURIComponent(g.name)}')">
-          <div class="leader-rank">${rankLabel} Rank #${rankNumber}</div>
-          <div class="leader-name">${g.name}</div>
-          <div class="leader-stats">
-            <span>👥 ${g.followers.toLocaleString()} Followers</span>
-            <span>⭐ ${g.actions.toLocaleString()} Actions</span>
-          </div>
-        </button>`;
-      })
-      .join("")}
-  `;
-
-  ranked.forEach((g, rankIndex) => {
-    const i = groups.indexOf(g);
+  groups.forEach((g, index) => {
+    const rankIndex = rankByOriginalIndex.get(index) ?? index;
+    const i = index;
     const color = COLORS[i % 3];
     const card = document.createElement("div");
     card.className = `profile rank-${rankIndex + 1}`;
@@ -165,19 +154,20 @@ function render() {
       ? `<img class="avatar" src="${g.photo}" onerror="this.style.display='none'">`
       : `<div class="avatar-ph" style="background:${color}">${initials(g.name)}</div>`;
 
-    const sortedPosts = (g.posts || []).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const sortedPosts = (g.posts || [])
+      .slice()
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const cells = sortedPosts
       .map((p) => {
         const originalIndex = g.posts.indexOf(p);
         const meta = [];
         const followersAdded = Number(p.followersAdded || 0);
-        const actionsAdded = Number(p.actionsAdded || 0);
         const timeText = p.createdAt ? formatTime(p.createdAt) : "";
         if (followersAdded) meta.push(`👥 +${followersAdded.toLocaleString()} Followers`);
-        if (actionsAdded) meta.push(`⭐ +${actionsAdded.toLocaleString()} Actions`);
         if (timeText) meta.push(`🕒 ${timeText}`);
 
-        const details = `<div class="post-details"><div class="post-caption">${escapeHtml(p.cap || "Post")}</div><div class="post-meta">${meta.join("<br>")}</div></div>`;
+        const caption = p.cap || p.caption || "Post";
+        const details = `<div class="post-details"><div class="post-caption">${escapeHtml(caption)}</div><div class="post-meta">${meta.join("<br>")}</div></div>`;
         const inner = p.photo
           ? `<div class="post-visual"><img src="${p.photo}" onerror="this.style.display='none'"></div>${details}`
           : `<div class="post-tile" style="background:${color}"></div>${details}`;
@@ -216,12 +206,6 @@ function render() {
         <button class="bell" onclick="openNotif(${i})" aria-label="Notifications">&#128276;${bellBadge}</button>
       </div>
       <div class="bio"><span class="label">${g.name}</span> · ${g.bio}</div>
-      <div class="controls first">
-        <span class="ctrl-label">Followers</span>
-        <input type="number" id="f_${i}" value="10" min="1">
-        <button class="btn" onclick="addF(${i})">+ Followers</button>
-        <button class="btn minus" onclick="subF(${i})">&minus;</button>
-      </div>
       <div class="controls">
         <span class="ctrl-label">Actions (good deeds)</span>
         <input type="number" id="a_${i}" value="1" min="1">
@@ -264,6 +248,11 @@ function subA(i) {
   render();
 }
 function delPost(i, pi) {
+  const post = groups[i].posts[pi];
+  if (post) {
+    const followersRemoved = Number(post.followersAdded || 0);
+    groups[i].followers = Math.max(0, groups[i].followers - followersRemoved);
+  }
   groups[i].posts.splice(pi, 1);
   save();
   render();
@@ -329,31 +318,37 @@ function saveProfile() {
   closeModal("profileModal");
 }
 
+function setPostError(message) {
+  document.getElementById("postError").textContent = message;
+}
 function openPost(i) {
   activeIndex = i;
   p_cap.value = "";
   p_photo.value = "";
-  p_followers.value = "0";
-  p_actions.value = "0";
+  p_followers.value = "1";
   p_photofile.value = "";
+  setPostError("");
   document.getElementById("postModal").classList.add("show");
 }
 function savePost() {
   const g = groups[activeIndex];
   const cap = p_cap.value.trim();
-  const followersAdded = Math.max(0, Number(p_followers.value || 0));
-  const actionsAdded = Math.max(0, Number(p_actions.value || 0));
+  const followerInput = p_followers.value.trim();
+  const followersAdded = Number(followerInput);
+  if (!followerInput || !Number.isFinite(followersAdded) || followersAdded <= 0) {
+    setPostError("Please enter a valid Followers amount greater than zero.");
+    return;
+  }
+  setPostError("");
   const f = p_photofile.files[0];
   const finish = (photo) => {
     g.posts.unshift({
       cap,
       photo: photo || "",
       followersAdded,
-      actionsAdded,
       createdAt: Date.now(),
     });
     g.followers += followersAdded;
-    g.actions += actionsAdded;
     save();
     render();
     closeModal("postModal");
@@ -463,9 +458,9 @@ function importData(ev) {
         if (!Array.isArray(g.notifs)) g.notifs = [];
         if (!Array.isArray(g.posts)) g.posts = [];
         g.posts = g.posts.map((p) => ({
-          ...p,
+          cap: p.cap || p.caption || "",
+          photo: p.photo || "",
           followersAdded: Number(p.followersAdded || 0),
-          actionsAdded: Number(p.actionsAdded || 0),
           createdAt: p.createdAt || Date.now(),
         }));
       });
