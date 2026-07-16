@@ -22,10 +22,12 @@
           <button class="toolbar-btn secondary admin-mode-btn" onclick="setDisplayMode(false)">
             Admin Mode
           </button>
+          <button class="toolbar-btn danger reset-btn" onclick="resetAll()">
+            Reset
+          </button>
         </div>
       </div>
 
-      <div class="leaderboard" id="leaderboard"></div>
       <div class="container" id="container"></div>
       <div class="footer">
         Followers · Actions · Posts — all save automatically
@@ -66,9 +68,8 @@
           <label>Caption (what the session was about)</label>
           <textarea id="p_cap" maxlength="120"></textarea>
           <label>Followers Gained</label>
-          <input id="p_followers" type="number" min="0" value="0" />
-          <label>Actions Gained</label>
-          <input id="p_actions" type="number" min="0" value="0" />
+          <input id="p_followers" type="number" min="1" value="1" />
+          <div class="form-error" id="postError" aria-live="polite"></div>
           <label>Photo (paste image link or pick a file — optional)</label>
           <input id="p_photo" type="text" placeholder="https://..." />
           <input
