@@ -109,13 +109,31 @@ function load() {
     },
   );
 }
-function save() {
+// save(i): يكتب بس بيانات الجروب رقم i في فايربيز، مش كل الأراي.
+// ده أهم تعديل هنا: كتابة الأراي كله (groupsRef.set(groups)) كانت بتمسح
+// أي تعديل عمله حد تاني على جروب مختلف في نفس اللحظة تقريبًا (race condition).
+function save(i) {
   if (!groupsRef) return;
   try {
-    groupsRef.set(groups);
+    if (typeof i === "number") {
+      groupsRef.child(i).set(groups[i]);
+    } else {
+      // استخدام كامل بس لعمليات مقصود فيها الكتابة فوق كل حاجة (Reset / Import)
+      groupsRef.set(groups);
+    }
   } catch (e) {
     console.error(e);
   }
+}
+
+// تحديث رقم (actions/followers) بأمان حتى لو اتنين ضغطوا في نفس اللحظة،
+// بيستخدم Firebase transaction بدل ما يعتمد على النسخة المحلية القديمة.
+function saveCounter(i, field, newValue) {
+  if (!groupsRef) return;
+  groupsRef
+    .child(i)
+    .child(field)
+    .transaction(() => newValue);
 }
 
 function initials(n) {
@@ -225,27 +243,39 @@ function render() {
 
 function addF(i) {
   const a = +document.getElementById("f_" + i).value || 0;
-  groups[i].followers += a;
-  save();
-  render();
+  if (groupsRef) {
+    groupsRef.child(i).child("followers").transaction((cur) => (cur || 0) + a);
+  } else {
+    groups[i].followers += a;
+    render();
+  }
 }
 function subF(i) {
   const a = +document.getElementById("f_" + i).value || 0;
-  groups[i].followers = Math.max(0, groups[i].followers - a);
-  save();
-  render();
+  if (groupsRef) {
+    groupsRef.child(i).child("followers").transaction((cur) => Math.max(0, (cur || 0) - a));
+  } else {
+    groups[i].followers = Math.max(0, groups[i].followers - a);
+    render();
+  }
 }
 function addA(i) {
   const a = +document.getElementById("a_" + i).value || 0;
-  groups[i].actions += a;
-  save();
-  render();
+  if (groupsRef) {
+    groupsRef.child(i).child("actions").transaction((cur) => (cur || 0) + a);
+  } else {
+    groups[i].actions += a;
+    render();
+  }
 }
 function subA(i) {
   const a = +document.getElementById("a_" + i).value || 0;
-  groups[i].actions = Math.max(0, groups[i].actions - a);
-  save();
-  render();
+  if (groupsRef) {
+    groupsRef.child(i).child("actions").transaction((cur) => Math.max(0, (cur || 0) - a));
+  } else {
+    groups[i].actions = Math.max(0, groups[i].actions - a);
+    render();
+  }
 }
 function delPost(i, pi) {
   const post = groups[i].posts[pi];
@@ -254,7 +284,7 @@ function delPost(i, pi) {
     groups[i].followers = Math.max(0, groups[i].followers - followersRemoved);
   }
   groups[i].posts.splice(pi, 1);
-  save();
+  save(i);
   render();
 }
 
@@ -307,12 +337,12 @@ function saveProfile() {
   if (f) {
     readFile(f, (d) => {
       g.photo = d;
-      save();
+      save(activeIndex);
       render();
     });
   } else {
     g.photo = m_photo.value.trim();
-    save();
+    save(activeIndex);
     render();
   }
   closeModal("profileModal");
@@ -349,7 +379,7 @@ function savePost() {
       createdAt: Date.now(),
     });
     g.followers += followersAdded;
-    save();
+    save(activeIndex);
     render();
     closeModal("postModal");
   };
@@ -383,13 +413,13 @@ function sendNotif() {
     }),
   });
   n_text.value = "";
-  save();
+  save(activeIndex);
   renderNotifList();
   render();
 }
 function delNotif(i) {
   groups[activeIndex].notifs.splice(i, 1);
-  save();
+  save(activeIndex);
   renderNotifList();
   render();
 }
@@ -398,7 +428,7 @@ function clearNotifs() {
   if (!g.notifs.length) return;
   if (!confirm("Clear all notifications for " + g.name + "?")) return;
   g.notifs = [];
-  save();
+  save(activeIndex);
   renderNotifList();
   render();
 }
