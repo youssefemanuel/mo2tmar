@@ -66,6 +66,24 @@ const DEFAULTS = [
 let groups = [];
 let activeIndex = null;
 let displayMode = false;
+let dirty = false; // فيه تعديلات محلية لسه ما اتحفظتش على فايربيز
+
+function markDirty() {
+  dirty = true;
+  const btn = document.getElementById("saveBtn");
+  if (btn) {
+    btn.classList.add("dirty");
+    btn.textContent = "💾 Save (لسه ما اتحفظش)";
+  }
+}
+function clearDirty() {
+  dirty = false;
+  const btn = document.getElementById("saveBtn");
+  if (btn) {
+    btn.classList.remove("dirty");
+    btn.textContent = "💾 Save";
+  }
+}
 
 function load() {
   if (!groupsRef) {
@@ -80,6 +98,11 @@ function load() {
   groupsRef.on(
     "value",
     (snapshot) => {
+      if (dirty) {
+        // فيه تعديلات محلية لسه ما اتحفظتش بالزرار — منتجاهلش التحديث الجاي
+        // من فايربيز عشان منمسحهاش. هتوصل أول ما حد يدوس Save.
+        return;
+      }
       const data = snapshot.val();
       if (data) {
         groups = data;
@@ -124,16 +147,6 @@ function save(i) {
   } catch (e) {
     console.error(e);
   }
-}
-
-// تحديث رقم (actions/followers) بأمان حتى لو اتنين ضغطوا في نفس اللحظة،
-// بيستخدم Firebase transaction بدل ما يعتمد على النسخة المحلية القديمة.
-function saveCounter(i, field, newValue) {
-  if (!groupsRef) return;
-  groupsRef
-    .child(i)
-    .child(field)
-    .transaction(() => newValue);
 }
 
 function initials(n) {
@@ -243,39 +256,27 @@ function render() {
 
 function addF(i) {
   const a = +document.getElementById("f_" + i).value || 0;
-  if (groupsRef) {
-    groupsRef.child(i).child("followers").transaction((cur) => (cur || 0) + a);
-  } else {
-    groups[i].followers += a;
-    render();
-  }
+  groups[i].followers += a;
+  markDirty();
+  render();
 }
 function subF(i) {
   const a = +document.getElementById("f_" + i).value || 0;
-  if (groupsRef) {
-    groupsRef.child(i).child("followers").transaction((cur) => Math.max(0, (cur || 0) - a));
-  } else {
-    groups[i].followers = Math.max(0, groups[i].followers - a);
-    render();
-  }
+  groups[i].followers = Math.max(0, groups[i].followers - a);
+  markDirty();
+  render();
 }
 function addA(i) {
   const a = +document.getElementById("a_" + i).value || 0;
-  if (groupsRef) {
-    groupsRef.child(i).child("actions").transaction((cur) => (cur || 0) + a);
-  } else {
-    groups[i].actions += a;
-    render();
-  }
+  groups[i].actions += a;
+  markDirty();
+  render();
 }
 function subA(i) {
   const a = +document.getElementById("a_" + i).value || 0;
-  if (groupsRef) {
-    groupsRef.child(i).child("actions").transaction((cur) => Math.max(0, (cur || 0) - a));
-  } else {
-    groups[i].actions = Math.max(0, groups[i].actions - a);
-    render();
-  }
+  groups[i].actions = Math.max(0, groups[i].actions - a);
+  markDirty();
+  render();
 }
 function delPost(i, pi) {
   const post = groups[i].posts[pi];
@@ -284,8 +285,25 @@ function delPost(i, pi) {
     groups[i].followers = Math.max(0, groups[i].followers - followersRemoved);
   }
   groups[i].posts.splice(pi, 1);
-  save(i);
+  markDirty();
   render();
+}
+
+// saveNow(): بتحفظ كل التعديلات المحلية اللي اتعملت من آخر مرة اتحفظت.
+// بتكتب كل جروب لوحده (مش الأراي كله دفعة واحدة) عشان لو جروب تاني
+// اتحدّث من فايربيز في الوقت ده، منمسحوش.
+function saveNow() {
+  if (!groupsRef) {
+    clearDirty();
+    return;
+  }
+  try {
+    groups.forEach((g, i) => groupsRef.child(i).set(g));
+    clearDirty();
+  } catch (e) {
+    console.error(e);
+    alert("حصل خطأ أثناء الحفظ. جرب تاني.");
+  }
 }
 
 function setDisplayMode(on) {
@@ -337,12 +355,12 @@ function saveProfile() {
   if (f) {
     readFile(f, (d) => {
       g.photo = d;
-      save(activeIndex);
+      markDirty();
       render();
     });
   } else {
     g.photo = m_photo.value.trim();
-    save(activeIndex);
+    markDirty();
     render();
   }
   closeModal("profileModal");
@@ -379,7 +397,7 @@ function savePost() {
       createdAt: Date.now(),
     });
     g.followers += followersAdded;
-    save(activeIndex);
+    markDirty();
     render();
     closeModal("postModal");
   };
@@ -413,13 +431,13 @@ function sendNotif() {
     }),
   });
   n_text.value = "";
-  save(activeIndex);
+  markDirty();
   renderNotifList();
   render();
 }
 function delNotif(i) {
   groups[activeIndex].notifs.splice(i, 1);
-  save(activeIndex);
+  markDirty();
   renderNotifList();
   render();
 }
@@ -428,7 +446,7 @@ function clearNotifs() {
   if (!g.notifs.length) return;
   if (!confirm("Clear all notifications for " + g.name + "?")) return;
   g.notifs = [];
-  save(activeIndex);
+  markDirty();
   renderNotifList();
   render();
 }
@@ -512,4 +530,11 @@ document.querySelectorAll(".modal").forEach((m) =>
     if (e.target === m) m.classList.remove("show");
   }),
 );
+// تحذير لو حد حاول يقفل/يعمل رفرش والتعديلات لسه ما اتحفظتش بالزرار
+window.addEventListener("beforeunload", (e) => {
+  if (dirty) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
 load();
